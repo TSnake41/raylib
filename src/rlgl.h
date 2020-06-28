@@ -676,9 +676,11 @@ RLAPI int GetPixelDataSize(int width, int height, int format);// Get pixel data 
 #if defined(GRAPHICS_API_OPENGL_ES2)
     #define GL_GLEXT_PROTOTYPES
 
+    #if !defined(PLATFORM_DESKTOP)
     /* We are not using EGL with X11. */
     #define EGL_NO_X11
     #include <EGL/egl.h>                // EGL library
+    #endif
 
     #include <GLES2/gl2.h>              // OpenGL ES 2.0 library
     #include <GLES2/gl2ext.h>           // OpenGL ES 2.0 extensions library
@@ -1623,7 +1625,7 @@ void rlglInit(int width, int height)
     // Check required extensions
     for (int i = 0; i < numExt; i++)
     {
-#if defined(GRAPHICS_API_OPENGL_ES2)
+#if defined(GRAPHICS_API_OPENGL_ES2) && !defined(PLATFORM_DESKTOP)
         // Check VAO support
         // NOTE: Only check on OpenGL ES, OpenGL 3.3 has VAO support as core feature
         if (strcmp(extList[i], (const char *)"GL_OES_vertex_array_object") == 0)
