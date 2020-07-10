@@ -159,6 +159,9 @@ typedef struct tagBITMAPINFOHEADER {
 #define MA_FREE RL_FREE
 
 #define MA_NO_JACK
+#define MA_NO_WAV
+#define MA_NO_FLAC
+#define MA_NO_MP3
 #define MINIAUDIO_IMPLEMENTATION
 #include "external/miniaudio.h"         // miniaudio library
 #undef PlaySound                        // Win32 API: windows.h > mmsystem.h defines PlaySound macro
@@ -244,6 +247,10 @@ typedef struct tagBITMAPINFOHEADER {
 #ifndef MAX_AUDIO_BUFFER_POOL_CHANNELS
     #define MAX_AUDIO_BUFFER_POOL_CHANNELS    16    // Audio pool channels
 #endif
+#ifndef DEFAULT_AUDIO_BUFFER_SIZE
+    #define DEFAULT_AUDIO_BUFFER_SIZE       4096    // Default audio buffer size
+#endif
+
 
 //----------------------------------------------------------------------------------
 // Types and Structures Definition
@@ -335,7 +342,7 @@ static AudioData AUDIO = {          // Global AUDIO context
     // After some math, considering a sampleRate of 48000, a buffer refill rate of 1/60 seconds and a
     // standard double-buffering system, a 4096 samples buffer has been chosen, it should be enough
     // In case of music-stalls, just increase this number
-    .Buffer.defaultSize = 4096
+    .Buffer.defaultSize = DEFAULT_AUDIO_BUFFER_SIZE
 };
 
 //----------------------------------------------------------------------------------
@@ -415,6 +422,9 @@ void InitAudioDevice(void)
     config.sampleRate = AUDIO_DEVICE_SAMPLE_RATE;
     config.dataCallback = OnSendAudioDataToDevice;
     config.pUserData = NULL;
+#if defined(__EMSCRIPTEN__)
+    config.periodSizeInMilliseconds = 33;
+#endif
 
     result = ma_device_init(&AUDIO.System.context, &config, &AUDIO.System.device);
     if (result != MA_SUCCESS)
@@ -437,7 +447,7 @@ void InitAudioDevice(void)
 
     // Mixing happens on a seperate thread which means we need to synchronize. I'm using a mutex here to make things simple, but may
     // want to look at something a bit smarter later on to keep everything real-time, if that's necessary.
-    if (ma_mutex_init(&AUDIO.System.context, &AUDIO.System.lock) != MA_SUCCESS)
+    if (ma_mutex_init(&AUDIO.System.lock) != MA_SUCCESS)
     {
         TRACELOG(LOG_ERROR, "AUDIO: Failed to create mutex for mixing");
         ma_device_uninit(&AUDIO.System.device);
