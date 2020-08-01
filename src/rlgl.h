@@ -125,6 +125,8 @@
     #define GRAPHICS_API_OPENGL_33
 #endif
 
+#define SUPPORT_RENDER_TEXTURES_HINT
+
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
@@ -517,6 +519,7 @@ RLAPI unsigned int rlLoadAttribBuffer(unsigned int vaoId, int shaderLoc, void *b
 RLAPI void rlglInit(int width, int height);           // Initialize rlgl (buffers, shaders, textures, states)
 RLAPI void rlglClose(void);                           // De-inititialize rlgl (buffers, shaders, textures)
 RLAPI void rlglDraw(void);                            // Update and draw default internal buffers
+RLAPI void rlCheckErrors(void);                       // Check and log OpenGL error codes
 
 RLAPI int rlGetVersion(void);                         // Returns current OpenGL version
 RLAPI bool rlCheckBufferLimit(int vCount);            // Check internal buffer overflow for a given number of vertex
@@ -1082,7 +1085,6 @@ void rlOrtho(double left, double right, double bottom, double top, double znear,
 #endif
 
 // Set the viewport area (transformation from normalized device coordinates to window coordinates)
-// NOTE: Updates global variables: RLGL.State.framebufferWidth, RLGL.State.framebufferHeight
 void rlViewport(int x, int y, int width, int height)
 {
     glViewport(x, y, width, height);
@@ -1385,7 +1387,7 @@ void rlTextureParameters(unsigned int id, int param, int value)
 // Enable rendering to texture (fbo)
 void rlEnableRenderTexture(unsigned int id)
 {
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     glBindFramebuffer(GL_FRAMEBUFFER, id);
 
     //glDisable(GL_CULL_FACE);    // Allow double side drawing for texture flipping
@@ -1396,7 +1398,7 @@ void rlEnableRenderTexture(unsigned int id)
 // Disable rendering to texture
 void rlDisableRenderTexture(void)
 {
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     //glEnable(GL_CULL_FACE);
@@ -1452,7 +1454,7 @@ void rlDeleteTextures(unsigned int id)
 // Unload render texture from GPU memory
 void rlDeleteRenderTextures(RenderTexture2D target)
 {
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     if (target.texture.id > 0) glDeleteTextures(1, &target.texture.id);
     if (target.depth.id > 0)
     {
@@ -1767,7 +1769,6 @@ void rlglInit(int width, int height)
     glClearDepth(1.0f);                                     // Set clear depth value (default)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);     // Clear color and depth buffers (depth buffer required for 3D)
 
-#if defined(GRAPHICS_API_OPENGL_ES2) || defined(GRAPHICS_API_OPENGL_21)
     // Store screen size into global variables
     RLGL.State.framebufferWidth = width;
     RLGL.State.framebufferHeight = height;
@@ -1775,7 +1776,6 @@ void rlglInit(int width, int height)
     // Init texture and rectangle used on basic shapes drawing
     RLGL.State.shapesTexture = GetTextureDefault();
     RLGL.State.shapesTextureRec = (Rectangle){ 0.0f, 0.0f, 1.0f, 1.0f };
-#endif
 
     TRACELOG(LOG_INFO, "RLGL: Default state initialized successfully");
 }
@@ -1798,6 +1798,45 @@ void rlglDraw(void)
 {
 #if defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
     DrawRenderBatch(RLGL.currentBatch);    // NOTE: Stereo rendering is checked inside
+#endif
+}
+
+// Check and log OpenGL error codes
+void rlCheckErrors() {
+#if defined(GRAPHICS_API_OPENGL_21) || defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)
+    int check = 1;
+    while (check) {
+        const GLenum err = glGetError();
+        switch (err) {
+            case GL_NO_ERROR:
+                check = 0;
+                break;
+            case 0x0500: // GL_INVALID_ENUM:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_INVALID_ENUM");
+                break;
+            case 0x0501: //GL_INVALID_VALUE:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_INVALID_VALUE");
+                break;
+            case 0x0502: //GL_INVALID_OPERATION:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_INVALID_OPERATION");
+                break;
+            case 0x0503: // GL_STACK_OVERFLOW:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_STACK_OVERFLOW");
+                break;
+            case 0x0504: // GL_STACK_UNDERFLOW:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_STACK_UNDERFLOW");
+                break;
+            case 0x0505: // GL_OUT_OF_MEMORY:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_OUT_OF_MEMORY");
+                break;
+            case 0x0506: // GL_INVALID_FRAMEBUFFER_OPERATION:
+                TRACELOG(LOG_WARNING, "GL: Error detected: GL_INVALID_FRAMEBUFFER_OPERATION");
+                break;
+            default:
+                TRACELOG(LOG_WARNING, "GL: Error detected: unknown error code %x", err);
+                break;
+        }
+    }
 #endif
 }
 
@@ -2230,7 +2269,7 @@ RenderTexture2D rlLoadRenderTexture(int width, int height, int format, int depth
 {
     RenderTexture2D target = { 0 };
 
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     if (useDepthTexture && RLGL.ExtSupported.texDepth) target.depthTexture = true;
 
     // Create the framebuffer object
@@ -2283,7 +2322,7 @@ RenderTexture2D rlLoadRenderTexture(int width, int height, int format, int depth
 // NOTE: Attach type: 0-Color, 1-Depth renderbuffer, 2-Depth texture
 void rlRenderTextureAttach(RenderTexture2D target, unsigned int id, int attachType)
 {
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     glBindFramebuffer(GL_FRAMEBUFFER, target.id);
 
     if (attachType == 0) glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, id, 0);
@@ -2302,7 +2341,7 @@ bool rlRenderTextureComplete(RenderTexture target)
 {
     bool result = false;
 
-#if !defined(GRAPHICS_API_OPENGL_21) && (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2))
+#if (defined(GRAPHICS_API_OPENGL_33) || defined(GRAPHICS_API_OPENGL_ES2)) && defined(SUPPORT_RENDER_TEXTURES_HINT)
     glBindFramebuffer(GL_FRAMEBUFFER, target.id);
 
     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);

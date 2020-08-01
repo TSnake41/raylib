@@ -151,7 +151,7 @@ ifeq ($(PLATFORM),PLATFORM_WEB)
     EMSCRIPTEN_PATH    ?= $(EMSDK_PATH)/upstream/emscripten
     CLANG_PATH          = $(EMSDK_PATH)/upstream/bin
     PYTHON_PATH         = $(EMSDK_PATH)/python/3.7.4_64bit
-    NODE_PATH           = $(EMSDK_PATH)/node/12.9.1_64bit/bin
+    NODE_PATH           = $(EMSDK_PATH)/node/12.18.1_64bit/bin
     export PATH         = $(EMSDK_PATH);$(EMSCRIPTEN_PATH);$(CLANG_PATH);$(NODE_PATH);$(PYTHON_PATH);C:\raylib\MinGW\bin:$$(PATH)
 endif
 
@@ -160,12 +160,12 @@ ifeq ($(PLATFORM),PLATFORM_ANDROID)
     # Starting at 2019 using ARM64 is mandatory for published apps,
     # and minimum required target API is Android 9 (API level 28)
     ANDROID_ARCH ?= ARM
-    ANDROID_API_VERSION = 28
+    ANDROID_API_VERSION ?= 28
 
     # Android required path variables
     # NOTE: Starting with Android NDK r21, no more toolchain generation is required, NDK is the toolchain on itself
     ifeq ($(OS),Windows_NT)
-        ANDROID_NDK = C:/android-ndk-r21
+        ANDROID_NDK = C:/android-ndk
         ANDROID_TOOLCHAIN = $(ANDROID_NDK)/toolchains/llvm/prebuilt/windows-x86_64
     else
         ANDROID_NDK ?= /usr/lib/android/ndk
@@ -322,7 +322,7 @@ ifeq ($(PLATFORM),PLATFORM_WEB)
     # --profiling                # include information for code profiling
     # --memory-init-file 0       # to avoid an external memory initialization code file (.mem)
     # --preload-file resources   # specify a resources folder for data compilation
-    CFLAGS += -s USE_GLFW=3
+    CFLAGS += -s USE_GLFW=3 -s USE_PTHREADS=1
 endif
 ifeq ($(PLATFORM),PLATFORM_ANDROID)
     # Compiler flags for arquitecture
